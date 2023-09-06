@@ -7,6 +7,7 @@ using System.IO;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using MusicBeePlugin;
+using System.Text;
 
 namespace MusicBeePlugin
 {
@@ -223,17 +224,18 @@ namespace MusicBeePlugin
 
         public void BackupQueue(string backupName)
         {
-            // Use the Library_QueryFilesExDelegate to get all files in the Now Playing list
             if (mbApiInterface.NowPlayingList_QueryFilesEx(null, out string[] files))
             {
-                QueueBackup backup = new QueueBackup();
-
-                // Add all files in the Now Playing list to the backup
-                backup.TrackUrls.AddRange(files);
-
                 string backupFilePath = Path.Combine(backupFolderPath, backupName);
-                string backupData = backup.ToString();
-                File.WriteAllText(backupFilePath, backupData);
+
+                // Use StringBuilder to efficiently build the string representation
+                StringBuilder backupData = new StringBuilder();
+                foreach (string fileUrl in files)
+                {
+                    backupData.AppendLine(fileUrl);
+                }
+
+                File.WriteAllText(backupFilePath, backupData.ToString());
             }
         }
 
@@ -242,17 +244,11 @@ namespace MusicBeePlugin
             string backupFilePath = Path.Combine(backupFolderPath, backupName);
             if (File.Exists(backupFilePath))
             {
-                string backupData = File.ReadAllText(backupFilePath);
-                QueueBackup backup = QueueBackup.FromString(backupData);
+                string[] backupData = File.ReadAllLines(backupFilePath);
 
                 // Clear the current Now Playing list
                 mbApiInterface.NowPlayingList_Clear();
-
-                // Add tracks from the backup to the Now Playing list
-                foreach (string fileUrl in backup.TrackUrls)
-                {
-                    mbApiInterface.NowPlayingList_QueueNext(fileUrl);
-                }
+                mbApiInterface.NowPlayingList_QueueFilesLast(backupData);
             }
         }
 
